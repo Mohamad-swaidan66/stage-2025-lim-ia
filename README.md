@@ -49,24 +49,20 @@ Tesseract OCR
 ffmpeg
  (utilisé par moviepy et pydub)
 
-Ollama installé et en service local sur http://localhost:11434 avec les modèles nécessaires
-
 
 Installation Python
 pip install -r requirements.txt
 
 📂 Structure du projet
-.
-├── builder.py                     # Ingestion via LlamaIndex -> Chroma
-├── ocr_to_markdown.py              # OCR image -> Markdown structuré
-├── video_transcriber.py            # Transcription vidéo -> Markdown
-├── rag_terminal.py                  # Interface CLI RAG
-├── rag_gradio.py                    # Interface web avec Gradio
-├── multi_model_benchmark.py         # Comparaison multi-LLM avec chronométrage
-├── /Data                           # Données brutes (images, vidéos, docs)
-├── /Data_parse                     # Sorties Markdown et index vectoriels
-├── /chroma_index                   # Stockage persistant ChromaDB
-└── README.md
+├── builder.py # Ingestion via LlamaIndex -> Chroma
+├── ocr_to_markdown.py # OCR image -> Markdown structuré
+├── video_transcriber.py # Transcription vidéo -> Markdown
+├── rag_terminal.py # Interface CLI RAG
+├── rag_gradio.py # Interface web avec Gradio
+├── multi_model_benchmark.py # Comparaison multi-LLM avec chronométrage
+├── /Data # Données brutes (images, vidéos, docs)
+├── /Data_parse # Sorties Markdown et index vectoriels
+└── /chroma_index # Stockage persistant ChromaDB
 
 
 
