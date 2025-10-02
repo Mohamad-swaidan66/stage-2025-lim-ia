@@ -55,11 +55,6 @@ pip install -r requirements.txt
 
 
 
-## 🏗️ Architecture RAG
-
-
-<img width="846" height="478" alt="image" src="https://github.com/user-attachments/assets/c87c43e8-a286-41a1-ab81-aa856e83cefe" />
-
 
 
 
