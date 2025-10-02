@@ -54,7 +54,7 @@ pip install -r requirements.txt
 └── /chroma_index                # Stockage persistant ChromaDB
 
 
-\
+
 ## 🏗️ Architecture RAG
 
 
