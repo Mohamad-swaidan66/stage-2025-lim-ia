@@ -67,5 +67,5 @@ pip install -r requirements.txt
 
 
 Projet interne LIM — développé pour l’assistant technique & commercial CWD.
-<img width="704" height="313" alt="image" src="https://github.com/user-attachments/assets/02195d3b-5f19-42fa-8371-36096bf13611" />
+
 
