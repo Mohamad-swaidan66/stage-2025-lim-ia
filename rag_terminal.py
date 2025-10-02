@@ -8,18 +8,33 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
 from langchain.prompts import ChatPromptTemplate
 
-# === CONFIGURATION ===
+# =========================================================
+# CONFIGURATION GLOBALE
+# ---------------------------------------------------------
+# DATA_DIR   : répertoire contenant les documents prétraités
+# CHROMA_DIR : répertoire où sera stocké l’index Chroma persistant
+# =========================================================
 DATA_DIR = "/var/www/RAG/Data_parse"
 CHROMA_DIR = "/var/www/RAG/chroma_index"
 
-
-# === EMBEDDING MODEL ===
+# =========================================================
+# EMBEDDING MODEL (Ollama)
+# ---------------------------------------------------------
+# - Utilise "nomic-embed-text" pour transformer les documents en vecteurs
+# - base_url = Ollama local
+# =========================================================
 embed_model = OllamaEmbeddings(
     model="nomic-embed-text", 
     base_url="http://localhost:11434"
 )
 
-# === GEMMA LLM ===
+# =========================================================
+# LLM (Ollama - Llama3)
+# ---------------------------------------------------------
+# - Modèle utilisé : "llama3:latest"
+# - Contexte max = 8192 tokens
+# - Température basse (0.1) pour réponses précises et déterministes
+# =========================================================
 llm = OllamaLLM(
     model="llama3:latest",
     base_url="http://localhost:11434",
@@ -28,13 +43,25 @@ llm = OllamaLLM(
     request_timeout=3000
 )
 
-# === TEXT CLEANING ===
+# =========================================================
+# FONCTION DE NETTOYAGE TEXTE
+# ---------------------------------------------------------
+# - Supprime espaces multiples
+# - Remplace espaces insécables par des espaces normaux
+# - Retourne texte nettoyé
+# =========================================================
 def clean_text(text: str) -> str:
     text = re.sub(r'\s+', ' ', text)
     text = text.replace('\u00A0', ' ')
     return text
 
-# === LOADER + CLEAN ===
+# =========================================================
+# CHARGEMENT + NETTOYAGE DES DOCUMENTS
+# ---------------------------------------------------------
+# - DirectoryLoader : charge tous les fichiers texte sous DATA_DIR
+# - TextLoader      : détecte automatiquement l'encodage
+# - Nettoyage du contenu avant indexation
+# =========================================================
 def load_and_clean_docs():
     loader = DirectoryLoader(
         DATA_DIR,
@@ -49,7 +76,15 @@ def load_and_clean_docs():
         doc.page_content = clean_text(doc.page_content)
     return docs
 
-# === BUILD OR LOAD CHROMA ===
+# =========================================================
+# CONSTRUCTION OU RECHARGEMENT DE L'INDEX CHROMA
+# ---------------------------------------------------------
+# - Si index existe déjà : on le recharge
+# - Sinon :
+#   * On charge/nettoie les docs
+#   * On les découpe en chunks (500 tokens, overlap 50)
+#   * On construit un nouvel index Chroma et on le persiste
+# =========================================================
 if os.path.exists(CHROMA_DIR):
     db = Chroma(persist_directory=CHROMA_DIR, embedding_function=embed_model)
 else:
@@ -60,13 +95,29 @@ else:
     db = Chroma.from_documents(chunks, embed_model, persist_directory=CHROMA_DIR)
     db.persist()
 
-# === RETRIEVER ===
+# =========================================================
+# RETRIEVER
+# ---------------------------------------------------------
+# - Méthode : MMR (Maximal Marginal Relevance)
+#   * k=5     : nombre final de passages retournés
+#   * fetch_k : 20 candidats initiaux
+#   * lambda=0.5 : équilibre entre pertinence & diversité
+# =========================================================
 retriever = db.as_retriever(
     search_type="mmr",
     search_kwargs={"k": 5 , "fetch_k": 20 , "lambda": 0.5}
 )
 
-# === PROMPT ===
+# =========================================================
+# PROMPT RAG
+# ---------------------------------------------------------
+# - Ton : expert, précis, direct
+# - Contraintes :
+#   * Pas d'invention
+#   * Pas de reformulation de la question
+#   * Pas de conseils hors sujet
+#   * Obligation de citer la source (nom du document)
+# =========================================================
 question_prompt = ChatPromptTemplate.from_template("""
 Vous êtes un assistant expert de la marque CWD. Répondez  en vous basant sur les documents fournis.
 
@@ -87,12 +138,25 @@ Contraintes :
 === RÉPONSE COURTE ===
 """)
 
-
-# === FORMAT CONTEXT ===
+# =========================================================
+# FORMATAGE DU CONTEXTE
+# ---------------------------------------------------------
+# - Concatène le contenu des documents récupérés
+# - Séparés par deux sauts de ligne pour lisibilité
+# =========================================================
 def format_docs(docs):
     return "\n\n".join(doc.page_content for doc in docs)
 
-# === QA CHAIN ===
+# =========================================================
+# CHAÎNE QA (RAG)
+# ---------------------------------------------------------
+# - Étapes :
+#   1) "context" : retriever + format_docs
+#   2) "question" : passe telle quelle (RunnablePassthrough)
+#   3) Injection dans le prompt
+#   4) LLM génère réponse
+#   5) StrOutputParser : formate la sortie texte
+# =========================================================
 qa_chain = (
     {
         "context": retriever | format_docs,
@@ -103,26 +167,13 @@ qa_chain = (
     | StrOutputParser()
 )
 
- #query = "Comment graisser sa selle juste après l'achat et dans le temps ? "
-
- #query = "comment choisir sa selle ?"
-
- #query = "Que veux dire la marque CWD ? "
-
- #query = "Quel est le meilleur cavalier mondial qui monte avec une selle CWD ?"
-
- #query = "Qui est Pauline Martin ?"
-
- #uery = "Combien de vache faut-il pour produire l'ensemble des selles CWD par an ?"
-
- #query = "Quelle est la différence entre une SE31 et une SE32 ?"
-
- #query = "Comment dire si le fitting des panneaux est correct sur le cheval ?"
-
- #query = "Quel cuire choisir pour un cavalier qui monte 4 fois par semaine et qui aime se sentir accroché dans sa selle ?"
-
-
-# === INTERFACE TERMINAL ===
+# =========================================================
+# BOUCLE TERMINAL (Interface CLI)
+# ---------------------------------------------------------
+# - L'utilisateur saisit une question
+# - Réponse générée via qa_chain
+# - Quitter avec "exit" / "quit" / "q"
+# =========================================================
 print("\n✅ Système prêt. Posez vos questions (ou tapez 'exit' pour quitter).\n")
 while True:
     try:
