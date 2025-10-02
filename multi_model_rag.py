@@ -1,6 +1,6 @@
 import os
 import re
-import time  # Importer le module pour mesurer le temps
+import time  # Pour mesurer le temps de réponse
 from langchain_ollama import OllamaLLM, OllamaEmbeddings
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_community.vectorstores import Chroma
@@ -9,17 +9,37 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
 from langchain.prompts import ChatPromptTemplate
 
-# === CONFIGURATION ===
+# =========================================================
+# CONFIGURATION GLOBALE
+# ---------------------------------------------------------
+# DATA_DIR   : répertoire où se trouvent les documents
+# CHROMA_DIR : répertoire où sera stocké l’index Chroma
+# =========================================================
 DATA_DIR = "/var/www/RAG/Data_parse"
 CHROMA_DIR = "/var/www/RAG/chroma_index"
 
-# === EMBEDDING MODEL ===
+# =========================================================
+# EMBEDDING MODEL (Ollama)
+# ---------------------------------------------------------
+# Modèle utilisé : "nomic-embed-text"
+# Sert à transformer le texte en vecteurs numériques
+# =========================================================
 embed_model = OllamaEmbeddings(
     model="nomic-embed-text", 
     base_url="http://localhost:11434"
 )
 
-# === LLM MODELS ===
+# =========================================================
+# LISTE DE MODELES LLM A TESTER
+# ---------------------------------------------------------
+# Plusieurs LLM configurés avec Ollama
+# - llama3
+# - mistral
+# - llama3.3
+# - gpt-oss
+# - gpt-oss 120b
+# Chaque modèle sera testé avec la même requête
+# =========================================================
 models = [
     OllamaLLM(
         model="llama3:latest",
@@ -48,7 +68,8 @@ models = [
         temperature=0.1,
         num_ctx=8192,
         request_timeout=3000
-    ), OllamaLLM(
+    ),
+    OllamaLLM(
         model="gpt-oss:120b",  
         base_url="http://localhost:11434",
         temperature=0.1,
@@ -57,13 +78,23 @@ models = [
     )
 ]
 
-# === TEXT CLEANING ===
+# =========================================================
+# NETTOYAGE TEXTE
+# ---------------------------------------------------------
+# - supprime les espaces multiples
+# - remplace les espaces insécables
+# =========================================================
 def clean_text(text: str) -> str:
     text = re.sub(r'\s+', ' ', text)
     text = text.replace('\u00A0', ' ')
     return text
 
-# === LOADER + CLEAN ===
+# =========================================================
+# CHARGEMENT & NETTOYAGE DOCUMENTS
+# ---------------------------------------------------------
+# - charge récursivement les fichiers texte
+# - nettoie le contenu avec clean_text
+# =========================================================
 def load_and_clean_docs():
     loader = DirectoryLoader(
         DATA_DIR,
@@ -78,7 +109,12 @@ def load_and_clean_docs():
         doc.page_content = clean_text(doc.page_content)
     return docs
 
-# === BUILD OR LOAD CHROMA ===
+# =========================================================
+# CONSTRUCTION OU RECHARGEMENT DE L’INDEX CHROMA
+# ---------------------------------------------------------
+# - si CHROMA_DIR existe : recharge l’index
+# - sinon : crée un nouvel index à partir des documents
+# =========================================================
 if os.path.exists(CHROMA_DIR):
     db = Chroma(persist_directory=CHROMA_DIR, embedding_function=embed_model)
 else:
@@ -89,13 +125,27 @@ else:
     db = Chroma.from_documents(chunks, embed_model, persist_directory=CHROMA_DIR)
     db.persist()
 
-# === RETRIEVER ===
+# =========================================================
+# RETRIEVER
+# ---------------------------------------------------------
+# - MMR (Maximal Marginal Relevance)
+#   * k=5 résultats finaux
+#   * fetch_k=20 candidats initiaux
+#   * lambda=0.5 équilibre pertinence/diversité
+# =========================================================
 retriever = db.as_retriever(
     search_type="mmr",
     search_kwargs={"k": 5 , "fetch_k": 20 , "lambda": 0.5}
 )
 
-# === PROMPT ===
+# =========================================================
+# PROMPT RAG
+# ---------------------------------------------------------
+# Contrainte : 
+# - réponse précise et factuelle
+# - pas d'invention
+# - citer la source
+# =========================================================
 question_prompt = ChatPromptTemplate.from_template(""" 
 Vous êtes un assistant expert de la marque CWD. Répondez  en vous basant sur les documents fournis.
 
@@ -115,11 +165,19 @@ Contraintes :
 === RÉPONSE COURTE ===
 """)
 
-# === FORMAT CONTEXT ===
+# =========================================================
+# FORMATAGE DES DOCUMENTS POUR LE CONTEXTE
+# =========================================================
 def format_docs(docs):
     return "\n\n".join(doc.page_content for doc in docs)
 
-# === QA CHAIN ===
+# =========================================================
+# CHAÎNE QA
+# ---------------------------------------------------------
+# - prend un modèle + une question
+# - exécute la RAG chain
+# - renvoie la réponse générée
+# =========================================================
 def get_response_for_model(model, query):
     qa_chain = (
         {
@@ -132,7 +190,15 @@ def get_response_for_model(model, query):
     )
     return qa_chain.invoke(query)
 
-# === TEST MULTIPLE MODELS & MEASURE TIME ===
+# =========================================================
+# INTERFACE TERMINAL (tests multi-modèles)
+# ---------------------------------------------------------
+# - L'utilisateur saisit une question
+# - Pour chaque modèle :
+#   * lance l'inférence
+#   * mesure le temps de réponse
+#   * affiche réponse + durée
+# =========================================================
 print("\n✅ Système prêt. Posez vos questions (ou tapez 'exit' pour quitter).\n")
 while True:
     try:
@@ -141,15 +207,15 @@ while True:
             print("👋 Fin du programme.")
             break
         
-        # Test pour chaque modèle
+        # Test pour chaque modèle configuré
         for model in models:
             print(f"🔄 Test du modèle: {model.model}")
-            start_time = time.time()  # Début du chronométrage
+            start_time = time.time()
             response = get_response_for_model(model, query)
-            end_time = time.time()  # Fin du chronométrage
-            duration = end_time - start_time  # Calcul de la durée
+            end_time = time.time()
+            duration = end_time - start_time
 
-            # Affichage de la réponse et de la durée
+            # Affichage
             print(f"\n🧠 Réponse du modèle {model.model} :\n", response)
             print(f"⏱ Durée de réflexion : {duration:.2f} secondes")
             print("-" * 60)
