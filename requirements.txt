@@ -1,0 +1,22 @@
+# --- OCR & Images ---
+pillow
+pytesseract
+pydub
+moviepy
+
+# --- Audio & Transcription ---
+openai-whisper
+
+# --- RAG / LLM / Vector DB ---
+langchain
+langchain-community
+langchain-core
+langchain-ollama
+llama-index
+chromadb
+
+# --- Web UI ---
+gradio
+
+# --- Utilitaires ---
+regex
