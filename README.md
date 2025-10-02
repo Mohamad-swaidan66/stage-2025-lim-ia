@@ -53,9 +53,15 @@ pip install -r requirements.txt
 ├── /Data_parse                  # Sorties Markdown et index vectoriels
 └── /chroma_index                # Stockage persistant ChromaDB
 
+
+\
 ## 🏗️ Architecture RAG
 
-![Architecture RAG](https://github.com/user-attachments/assets/256adb0f-0a80-4271-acd7-0288bd984363)
+
+<img width="846" height="478" alt="image" src="https://github.com/user-attachments/assets/c87c43e8-a286-41a1-ab81-aa856e83cefe" />
+
+
+
 
 
 
