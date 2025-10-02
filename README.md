@@ -28,6 +28,7 @@ Il s’appuie sur **Whisper, LangChain, LlamaIndex, ChromaDB**, et des modèles 
   - Comparateur multi-LLM : tester la même question avec plusieurs modèles (Llama3, Mistral, GPT-OSS, etc.) et mesurer temps de réponse.
 
 ---
+<img width="840" height="480" alt="image" src="https://github.com/user-attachments/assets/f9e8f3be-d0c4-4ef8-b7b9-903df4a32c6a" />
 
 ## ⚙️ Prérequis
 
@@ -57,7 +58,7 @@ pip install -r requirements.txt
 
 
 
-<img width="840" height="480" alt="image" src="https://github.com/user-attachments/assets/945272c2-8460-4f6e-bef4-11c48245dba2" />
+
 
 
 
