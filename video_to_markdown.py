@@ -1,3 +1,14 @@
+# =========================================================
+# Imports
+# ---------------------------------------------------------
+# whisper      : modèle de transcription audio/vidéo
+# requests     : appel HTTP à un LLM local (Ollama)
+# os, tempfile : gestion de fichiers temporaires et chemins
+# Path         : manipulation de chemins (lecture/écriture)
+# pydub        : conversion MP3 -> WAV
+# moviepy      : extraction piste audio d'une vidéo
+# time         : temporisation (ex. boucle alternatives commentées)
+# =========================================================
 import whisper
 import requests
 import os
@@ -7,24 +18,56 @@ from pydub import AudioSegment
 import moviepy.editor as mp
 import time
 
+# =========================================================
+# Extraction audio depuis une vidéo
+# ---------------------------------------------------------
+# - Entrée  : chemin vidéo, chemin de sortie audio (wav)
+# - Sortie  : chemin du fichier audio généré
+# - Effet   : écrit un fichier audio à partir de la piste de la vidéo
+# =========================================================
 def extract_audio_from_video(video_path: str, output_audio_path: str) -> str:
+    """Extrait la piste audio d'une vidéo et l'enregistre en fichier audio."""
     video = mp.VideoFileClip(video_path)
     audio = video.audio
     audio.write_audiofile(output_audio_path, logger=None)
     return output_audio_path
 
+# =========================================================
+# Conversion MP3 -> WAV
+# ---------------------------------------------------------
+# - Entrée  : chemin .mp3
+# - Sortie  : chemin .wav
+# - Effet   : crée un WAV adjacent (même nom, extension .wav)
+# =========================================================
 def convert_mp3_to_wav(mp3_path: str) -> str:
+    """Convertit un fichier MP3 en WAV (même répertoire/nom)."""
     audio = AudioSegment.from_file(mp3_path, format="mp3")
     wav_path = mp3_path.replace(".mp3", ".wav")
     audio.export(wav_path, format="wav")
     return wav_path
 
+# =========================================================
+# Transcription (Whisper)
+# ---------------------------------------------------------
+# - Entrée  : chemin audio, taille modèle, langue
+# - Sortie  : liste de segments (dict) avec 'start'/'end'/'text'
+# - Effet   : charge le modèle Whisper et transcrit l'audio
+# =========================================================
 def transcribe_segments(audio_path: str, model_size="large", language="fr"):
+    """Transcrit un fichier audio via Whisper et renvoie les segments."""
     model = whisper.load_model(model_size)
     result = model.transcribe(audio_path, language=language, verbose=False)
     return result['segments']
 
+# =========================================================
+# Groupement de segments par durée
+# ---------------------------------------------------------
+# - Entrée  : segments Whisper, durée cible d'un chunk (sec)
+# - Sortie  : liste de listes de segments (chunks)
+# - Logique : accumule jusqu'à dépasser 'chunk_duration' puis coupe
+# =========================================================
 def group_segments_by_duration(segments, chunk_duration=60):
+    """Regroupe séquentiellement les segments en blocs d'environ 'chunk_duration' secondes."""
     grouped = []
     current_chunk = []
     current_start = 0
@@ -45,7 +88,15 @@ def group_segments_by_duration(segments, chunk_duration=60):
 
     return grouped
 
+# =========================================================
+# Appel LLM pour produire un Markdown structuré/corrigé
+# ---------------------------------------------------------
+# - Entrée  : texte brut, nom du modèle local (Ollama)
+# - Sortie  : texte Markdown (ou message d'erreur)
+# - Effet   : POST /api/generate sur Ollama (stream=False)
+# =========================================================
 def generate_markdown_summary(text_chunk: str, model_name="mistral") -> str:
+    """Demande à un LLM local de corriger/structurer un texte en Markdown strict."""
     prompt = f"""
 Tu es un **relecteur-correcteur professionnel** spécialisé en langue française.
 
@@ -63,8 +114,8 @@ Tu restitueras le texte corrigé au **format Markdown strict**, structuré comme
 - Corrige aussi les fautes de typographie (ponctuation, majuscules, espaces).  
 - Améliore le style si nécessaire pour éviter les répétitions ou formulations maladroites.  
 - Ne modifie pas le sens des phrases ni les informations techniques.  
-- Si un terme semble erroné ou peu clair (ex. « pouvrante »), corrige-le par le bon mot (ex. « poudrante »).  
-- Si un nom de lieu est mal orthographié, corrige-le selon la toponymie officielle (ex. « Saint-Pardou-la-Rivière » → « Saint-Pardoux-la-Rivière »).  
+- Si un terme semble erroné ou peu clair (ex. « pouvrante »), corrige-le par le bon mot (ex. « poudrante »).  
+- Si un nom de lieu est mal orthographié, corrige-le selon la toponymie officielle (ex. « Saint-Pardou-la-Rivière » → « Saint-Pardoux-la-Rivière »).  
 - Utilise uniquement **du Markdown strict** : pas de balises HTML, pas de commentaires, pas de formatage superflu. Uniquement `##` pour les titres et des paragraphes.
 
 ### Texte à corriger :
@@ -91,7 +142,16 @@ Réponds uniquement au format Markdown, sans texte additionnel hors structure de
     except Exception as e:
         return "## Erreur\n\nImpossible de générer le contenu Markdown structuré."
 
+# =========================================================
+# Sauvegarde de la transcription structurée (Markdown)
+# ---------------------------------------------------------
+# - Entrée  : groupes de segments, chemin de sortie (.md), modèle LLM
+# - Sortie  : fichier .md structuré (et option TXT brut si bloc activé)
+# - Effet   : concatène tous les segments, appelle le LLM, écrit le .md
+# - NOTE    : la variante par-chunk est conservée en commentaire
+# =========================================================
 def save_structured_transcription_markdown(grouped_segments, output_path, model_name="mistral"):
+    """Assemble le texte, génère le Markdown structuré et l'écrit sur disque."""
     output_path = Path(output_path).with_suffix(".md")
 
     all_text = []
@@ -113,6 +173,7 @@ def save_structured_transcription_markdown(grouped_segments, output_path, model_
         f.write(f"{markdown_summary}")
     print(f"[✅] Transcription Markdown enregistrée dans : {output_path}")
 
+    # Variante : génération par chunk (conservée telle quelle, commentée)
     # with open(output_path, "w", encoding="utf-8") as f:
     #     f.write("# Transcription Structurée\n\n")
     #     for i, group in enumerate(grouped_segments):
@@ -122,7 +183,22 @@ def save_structured_transcription_markdown(grouped_segments, output_path, model_
     #         f.write(f"{markdown_summary}\n\n---\n\n")
     # print(f"[✅] Transcription Markdown enregistrée dans : {output_path}")
 
+# =========================================================
+# Pipeline complet
+# ---------------------------------------------------------
+# - Étapes :
+#   1) extrait audio de la vidéo (temporaire)
+#   2) transcrit via Whisper
+#   3) regroupe par durée
+#   4) génère/sauvegarde le Markdown structuré via LLM local
+# - Paramètres :
+#   * model_size : taille Whisper (ex. 'large')
+#   * language   : langue de transcription ('fr')
+#   * chunk_duration : taille des blocs (s) pour regrouper segments
+#   * model_name : modèle LLM utilisé par Ollama
+# =========================================================
 def structured_transcription_pipeline(video_path, output_text_path, model_size="medium", language="fr", chunk_duration=60, model_name="mistral"):
+    """Exécute l'enchaînement extraction -> transcription -> regroupement -> structuration Markdown."""
     video_path = str(video_path)
     output_text_path = Path(output_text_path)
     print( video_path )
@@ -134,12 +210,16 @@ def structured_transcription_pipeline(video_path, output_text_path, model_size="
         grouped_segments = group_segments_by_duration(segments, chunk_duration=chunk_duration)
         save_structured_transcription_markdown(grouped_segments, output_text_path, model_name=model_name)
 
+# =========================================================
+# Point d'entrée script
+# ---------------------------------------------------------
+# - Deux exemples de fichiers en entrée/sortie (le second écrase le premier)
+# - Lancement pipeline avec paramètres explicites
+# =========================================================
 if __name__ == "__main__":
     doc_in = "/var/www/RAG/Data/CWD FR/SELLES/ARGUMENTAIRES/ARGUMENTAIRE ARCON MADEMOISELLE.mp4"
     doc_out = "/var/www/RAG/Data_parse/CWD FR/SELLES/ARGUMENTAIRES/transcription_finale.md"
 
-    doc_in = "/var/www/RAG/test_guillaume/Finitions cuir CWD FR.mp4"
-    doc_out = "/var/www/RAG/test_guillaume/transcription_finale.md"
 
     structured_transcription_pipeline(
         video_path=doc_in ,
